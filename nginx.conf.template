@@ -1,0 +1,46 @@
+worker_processes 1;
+
+events {
+    worker_connections 1024;
+}
+
+http {
+    include mime.types;
+    default_type application/octet-stream;
+
+    # Docker internal DNS resolver
+    resolver 127.0.0.11 valid=5s;
+
+    # Tight timeouts for fast failover detection
+    proxy_connect_timeout 1s;
+    proxy_send_timeout 1s;
+    proxy_read_timeout 1s;
+
+    # Retry policy for auto-failover
+    proxy_next_upstream error timeout http_500 http_502 http_503 http_504;
+    proxy_next_upstream_tries 2;
+    proxy_next_upstream_timeout 0;
+
+    # Primary: Blue / Backup: Green
+    upstream service_backend {
+        server app_blue:${BLUE_APP_PORT} max_fails=1 fail_timeout=1s;
+        server app_green:${GREEN_APP_PORT} backup max_fails=1 fail_timeout=1s;
+    }
+
+    server {
+        listen ${NGINX_PORT};
+        server_name localhost;
+
+        location / {
+            proxy_pass http://service_backend;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+        }
+
+        location /healthz {
+            return 200 'Nginx OK';
+        }
+    }
+}

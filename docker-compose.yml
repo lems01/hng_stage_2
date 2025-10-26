@@ -1,0 +1,52 @@
+version: '3.8'
+
+services:
+  app_blue:
+    image: ${BLUE_IMAGE}
+    container_name: app_blue
+    # Expose the direct port for grader/chaos (8081)
+    ports:
+      - "${BLUE_APP_PORT}:${BLUE_APP_PORT}"
+    environment:
+      # Pass required variables to the Node.js application container
+      APP_POOL: blue
+      RELEASE_ID: ${RELEASE_ID_BLUE}
+      PORT: ${BLUE_APP_PORT}
+      # Required health/chaos endpoints are exposed by the image
+    restart: on-failure
+
+  app_green:
+    image: ${GREEN_IMAGE}
+    container_name: app_green
+    # Expose the direct port for grader (8082)
+    ports:
+      - "${GREEN_APP_PORT}:${GREEN_APP_PORT}"
+    environment:
+      # Pass required variables to the Node.js application container
+      APP_POOL: green
+      RELEASE_ID: ${RELEASE_ID_GREEN}
+      PORT: ${GREEN_APP_PORT}
+    restart: on-failure
+
+  nginx:
+    build:
+      context: .
+      dockerfile: Dockerfile.nginx
+    container_name: nginx
+    # Public entrypoint (8080)
+    ports:
+      - "${NGINX_PORT}:${NGINX_PORT}"
+    volumes:
+      # Mount the template and the entrypoint script
+      - ./nginx.conf.template:/etc/nginx/nginx.conf.template:ro
+      - ./entrypoint.sh:/docker-entrypoint.d/entrypoint.sh:ro
+    # Environment variables are passed for templating
+    environment:
+      - NGINX_PORT=${NGINX_PORT}
+      - BLUE_APP_PORT=${BLUE_APP_PORT}
+      - GREEN_APP_PORT=${GREEN_APP_PORT}
+    # Ensure Nginx starts only after the apps are ready
+    depends_on:
+      - app_blue
+      - app_green
+    restart: always

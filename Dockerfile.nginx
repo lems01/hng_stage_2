@@ -1,0 +1,15 @@
+# Use a lightweight Nginx base image
+FROM nginx:alpine
+
+# Install envsubst for template processing
+RUN apk add --no-cache gettext
+
+# Copy the Nginx config template first
+COPY nginx.conf.template /etc/nginx/nginx.conf.template
+
+# Copy the custom entrypoint script and explicitly set its permissions
+# We copy it to the root of the entrypoint directory so it is run.
+COPY entrypoint.sh /docker-entrypoint.d/25-custom-template.sh
+RUN chmod +x /docker-entrypoint.d/25-custom-template.sh
+
+# The original entrypoint.sh will now execute 25-custom-template.sh
